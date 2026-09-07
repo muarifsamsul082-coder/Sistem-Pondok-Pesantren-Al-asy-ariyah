@@ -1,18 +1,28 @@
 import React from 'react';
+import { LogOut, RefreshCw, Settings2 } from 'lucide-react';
+import TableEditor, { EditorColumn } from './TableEditor';
+import { Bill, News, PCSBRegistration, Room, Student } from '../types';
+import { deleteBillFromSupabase, deleteNewsFromSupabase, deletePpdbFromSupabase, deleteRoomFromSupabase, deleteStudentFromSupabase, pushBillToSupabase, pushNewsToSupabase, pushPpdbToSupabase, pushRoomToSupabase, pushStudentToSupabase } from '../lib/supabase';
 
-/**
- * Temporary resilient admin surface kept intentionally dependency-free so a malformed
- * generated dashboard cannot prevent the rest of the portal from loading.
- */
-export default function AdminDashboard(_props: Record<string, unknown>) {
-  return (
-    <main className="min-h-screen bg-background p-6 text-foreground">
-      <section className="mx-auto max-w-4xl rounded-lg border border-border bg-card p-6 shadow-sm">
-        <h1 className="text-xl font-semibold">Dashboard Admin</h1>
-        <p className="mt-2 text-sm text-muted-foreground">
-          Panel admin siap digunakan kembali.
-        </p>
-      </section>
-    </main>
-  );
+type Props = { [key: string]: unknown; students: Student[]; setStudents: React.Dispatch<React.SetStateAction<Student[]>>; announcements?: unknown[]; setAnnouncements?: React.Dispatch<React.SetStateAction<unknown[]>>; rooms: Room[]; setRooms: React.Dispatch<React.SetStateAction<Room[]>>; bills: Bill[]; setBills: React.Dispatch<React.SetStateAction<Bill[]>>; news: News[]; setNews: React.Dispatch<React.SetStateAction<News[]>>; ppdbList: PCSBRegistration[]; setPpdbList: React.Dispatch<React.SetStateAction<PCSBRegistration[]>>; onLogout?: () => void; activeTab?: string; setActiveTab?: (tab: any) => void; };
+
+const tabs = [{ id: 'students', label: 'Santri' }, { id: 'kamar', label: 'Kamar' }, { id: 'bills', label: 'Tagihan' }, { id: 'news_ann', label: 'Berita' }, { id: 'ppdb', label: 'PPDB' }];
+const studentColumns: EditorColumn<Student>[] = [{ key: 'nis', label: 'NIS', editable: false }, { key: 'fullName', label: 'Nama' }, { key: 'gender', label: 'Gender', type: 'select', options: ['Laki-laki', 'Perempuan'] }, { key: 'class', label: 'Kelas' }, { key: 'status', label: 'Status', type: 'select', options: ['Aktif', 'Alumni', 'Cuti', 'Berhenti'] }];
+const roomColumns: EditorColumn<Room>[] = [{ key: 'name', label: 'Nama kamar' }, { key: 'gender', label: 'Gender', type: 'select', options: ['Laki-laki', 'Perempuan'] }, { key: 'capacity', label: 'Kapasitas', type: 'number' }];
+const billColumns: EditorColumn<Bill>[] = [{ key: 'studentName', label: 'Santri', editable: false }, { key: 'title', label: 'Tagihan' }, { key: 'amount', label: 'Nominal', type: 'number' }, { key: 'dueDate', label: 'Jatuh tempo', type: 'date' }, { key: 'status', label: 'Status', type: 'select', options: ['Lunas', 'Belum Lunas', 'Konfirmasi Pembayaran'] }];
+const newsColumns: EditorColumn<News>[] = [{ key: 'title', label: 'Judul' }, { key: 'category', label: 'Kategori', type: 'select', options: ['Kajian', 'Kegiatan', 'Prestasi', 'Informasi'] }, { key: 'date', label: 'Tanggal', type: 'date' }, { key: 'author', label: 'Penulis' }];
+const ppdbColumns: EditorColumn<PCSBRegistration>[] = [{ key: 'fullName', label: 'Nama' }, { key: 'gender', label: 'Gender', type: 'select', options: ['Laki-laki', 'Perempuan'] }, { key: 'parentName', label: 'Wali' }, { key: 'parentPhone', label: 'Telepon' }, { key: 'status', label: 'Status', type: 'select', options: ['Pending', 'Diterima', 'Ditolak'] }];
+
+export default function AdminDashboard({ students, setStudents, rooms, setRooms, bills, setBills, news, setNews, ppdbList, setPpdbList, onLogout, activeTab = 'students', setActiveTab }: Props) {
+  const tab = tabs.some((item) => item.id === activeTab) ? activeTab : 'students';
+  const selectTab = (next: string) => setActiveTab?.(next);
+  const update = async <T extends { id: string }>(row: T, setter: React.Dispatch<React.SetStateAction<T[]>>, push: (row: T) => Promise<unknown>) => { setter((current) => current.map((item) => item.id === row.id ? row : item)); await push(row); };
+  const remove = async <T extends { id: string }>(id: string, setter: React.Dispatch<React.SetStateAction<T[]>>, removeRemote: (id: string) => Promise<unknown>) => { setter((current) => current.filter((item) => item.id !== id)); await removeRemote(id); };
+  const addStudent = (): Student => ({ id: crypto.randomUUID(), nis: '', fullName: '', gender: 'Laki-laki', classPagi: '', classSore: '', class: '', parentName: '', parentPhone: '', email: '', address: '', status: 'Aktif' });
+  const addRoom = (): Room => ({ id: crypto.randomUUID(), name: 'Kamar baru', gender: 'Laki-laki', formalSchool: '', diniyahSchool: '', capacity: 10 });
+  const addBill = (): Bill => ({ id: crypto.randomUUID(), studentId: '', studentName: '', title: 'Tagihan baru', amount: 0, dueDate: new Date().toISOString().slice(0, 10), status: 'Belum Lunas' });
+  const addNews = (): News => ({ id: crypto.randomUUID(), title: 'Berita baru', content: '', excerpt: '', date: new Date().toISOString().slice(0, 10), category: 'Informasi', image: '', author: '' });
+  const addPpdb = (): PCSBRegistration => ({ id: crypto.randomUUID(), fullName: 'Pendaftar baru', gender: 'Laki-laki', birthPlace: '', birthDate: '', parentName: '', parentPhone: '', address: '', previousSchool: '', registrationDate: new Date().toISOString().slice(0, 10), status: 'Pending' });
+  const editor = tab === 'students' ? <TableEditor title="Data Santri" data={students} columns={studentColumns} onUpdate={(row) => update(row, setStudents, pushStudentToSupabase)} onDelete={(id) => remove(id, setStudents, deleteStudentFromSupabase)} onAdd={addStudent} isRealtimeConnected /> : tab === 'kamar' ? <TableEditor title="Data Kamar" data={rooms} columns={roomColumns} onUpdate={(row) => update(row, setRooms, pushRoomToSupabase)} onDelete={(id) => remove(id, setRooms, deleteRoomFromSupabase)} onAdd={addRoom} isRealtimeConnected /> : tab === 'bills' ? <TableEditor title="Data Tagihan" data={bills} columns={billColumns} onUpdate={(row) => update(row, setBills, pushBillToSupabase)} onDelete={(id) => remove(id, setBills, deleteBillFromSupabase)} onAdd={addBill} isRealtimeConnected /> : tab === 'news_ann' ? <TableEditor title="Berita" data={news} columns={newsColumns} onUpdate={(row) => update(row, setNews, pushNewsToSupabase)} onDelete={(id) => remove(id, setNews, deleteNewsFromSupabase)} onAdd={addNews} isRealtimeConnected /> : <TableEditor title="Pendaftaran PPDB" data={ppdbList} columns={ppdbColumns} onUpdate={(row) => update(row, setPpdbList, async (item) => { await pushPpdbToSupabase(item); })} onDelete={(id) => remove(id, setPpdbList, deletePpdbFromSupabase)} onAdd={addPpdb} isRealtimeConnected />;
+  return <main className="min-h-screen bg-background p-4 text-foreground sm:p-6"><div className="mx-auto max-w-7xl space-y-5"><header className="flex flex-wrap items-center justify-between gap-4"><div><p className="text-sm font-medium text-primary">Pondok Pesantren Al-Asy&apos;ariyah</p><h1 className="text-2xl font-bold tracking-tight">Dashboard Admin</h1><p className="text-sm text-muted-foreground">Editor tersimpan otomatis dan disinkronkan ke semua perangkat.</p></div><div className="flex gap-2"><button type="button" className="rounded-lg border border-border p-2" aria-label="Refresh"><RefreshCw className="h-4 w-4" /></button><button type="button" className="rounded-lg border border-border p-2" aria-label="Pengaturan"><Settings2 className="h-4 w-4" /></button>{onLogout && <button type="button" onClick={onLogout} className="inline-flex items-center gap-2 rounded-lg bg-destructive px-3 py-2 text-sm text-destructive-foreground"><LogOut className="h-4 w-4" />Keluar</button>}</div></header><nav className="flex gap-2 overflow-x-auto border-b border-border pb-2">{tabs.map((item) => <button type="button" key={item.id} onClick={() => selectTab(item.id)} className={`whitespace-nowrap rounded-lg px-4 py-2 text-sm font-medium ${tab === item.id ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:bg-muted'}`}>{item.label}</button>)}</nav>{editor}</div></main>;
 }

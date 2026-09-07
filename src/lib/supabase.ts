@@ -663,7 +663,8 @@ export function subscribeToSupabaseRealtime(onUpdate: (table?: string) => void) 
             client.removeChannel(activeRealtimeChannel);
             if (activeRealtimeChannel === channel) {
               activeRealtimeChannel = null;
-            }
+}
+
           }
         } catch (err) {
           console.warn('Error unsubscribing channel:', err);
@@ -674,6 +675,32 @@ export function subscribeToSupabaseRealtime(onUpdate: (table?: string) => void) 
     console.error('Error establishing Supabase Realtime channel:', err);
     return null;
   }
+}
+
+export type EditorTableKey = 'students' | 'rooms' | 'bills' | 'news' | 'ppdb';
+export type EditorRow = { id: string; [key: string]: unknown };
+
+export async function loadEditorRows(tableKey: EditorTableKey): Promise<EditorRow[]> {
+  const client = getSupabaseClient();
+  if (!client) return [];
+  const { data, error } = await client.from('editor_rows').select('id,data').eq('table_key', tableKey).order('created_at');
+  if (error) throw error;
+  return (data ?? []).map((row: any) => ({ ...(row.data ?? {}), id: row.id }));
+}
+
+export async function saveEditorRow(tableKey: EditorTableKey, row: object): Promise<void> {
+  const client = getSupabaseClient();
+  if (!client) throw new Error('Supabase belum terkonfigurasi.');
+  const { id, ...data } = row as EditorRow;
+  const { error } = await client.from('editor_rows').upsert({ id, table_key: tableKey, data, updated_at: new Date().toISOString() });
+  if (error) throw error;
+}
+
+export async function deleteEditorRow(tableKey: EditorTableKey, id: string): Promise<void> {
+  const client = getSupabaseClient();
+  if (!client) throw new Error('Supabase belum terkonfigurasi.');
+  const { error } = await client.from('editor_rows').delete().eq('table_key', tableKey).eq('id', id);
+  if (error) throw error;
 }
 
 // ------------------------------------------------------------------------------

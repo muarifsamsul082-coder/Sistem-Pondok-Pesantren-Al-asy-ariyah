@@ -82,6 +82,7 @@ import {
   syncSettingsWithSupabase,
   pushSettingsToSupabase,
   pushPpdbToSupabase,
+  loadEditorRows,
   subscribeToSupabaseRealtime
 } from './lib/supabase';
 
@@ -388,6 +389,15 @@ export default function App() {
           setBills(remoteBills);
           localStorage.setItem('pesantren_bills', JSON.stringify(remoteBills));
         }
+
+        const editorRows = await Promise.all([
+          loadEditorRows('students'), loadEditorRows('rooms'), loadEditorRows('bills'), loadEditorRows('news'), loadEditorRows('ppdb')
+        ]);
+        if (editorRows[0].length) setStudents(editorRows[0] as unknown as Student[]);
+        if (editorRows[1].length) setRooms(editorRows[1] as unknown as Room[]);
+        if (editorRows[2].length) setBills(editorRows[2] as unknown as Bill[]);
+        if (editorRows[3].length) setNews(editorRows[3] as unknown as News[]);
+        if (editorRows[4].length) setPpdbList(editorRows[4] as unknown as PCSBRegistration[]);
 
         const currentLocalSettings = getLocal<PortalSettings>('pesantren_settings', DEFAULT_SETTINGS);
         const remoteSettings = await syncSettingsWithSupabase(currentLocalSettings);
